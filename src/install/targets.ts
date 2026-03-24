@@ -138,6 +138,15 @@ export const INSTALL_TARGETS: InstallTarget[] = [
     },
   },
   {
+    id: "antigravity",
+    label: "Antigravity IDE",
+    format: "mcpServers",
+    resolvePath(home) {
+      const dir = join(home, ".gemini", "antigravity");
+      return isDirectory(dir) ? join(dir, "mcp_config.json") : null;
+    },
+  },
+  {
     id: "zed",
     label: "Zed",
     format: "zedContextServers",

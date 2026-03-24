@@ -187,7 +187,7 @@ program
 program
   .command("install-agents")
   .description(
-    "Merge Dockyard MCP (stdio) into detected tool configs: Cursor, VS Code, Claude, Codex, Windsurf, Gemini CLI, Zed",
+    "Merge Dockyard MCP (stdio) into detected tool configs: Cursor, VS Code, Claude, Codex, Windsurf, Gemini CLI, Antigravity IDE, Zed",
   )
   .option("--list", "Print detected config paths and exit")
   .option("--dry-run", "Show would-write / would-skip per tool without modifying files")
@@ -279,7 +279,10 @@ program
   .option("--dry-run", "Show per-skill would-copy / would-skip without writing")
   .option("--force", "Overwrite existing skill folders of the same name")
   .option("--package-root <path>", "Dockyard package root (contains skills/ folder)")
-  .option("--targets <ids>", "Comma-separated: cursor,codex,claude-code,gemini,windsurf,zed")
+  .option(
+    "--targets <ids>",
+    "Comma-separated: cursor,codex,claude-code,gemini,antigravity,windsurf,zed",
+  )
   .action((opts: {
     list?: boolean;
     dryRun?: boolean;

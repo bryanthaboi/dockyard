@@ -52,6 +52,14 @@ export const SKILL_INSTALL_TARGETS: SkillInstallTarget[] = [
     },
   },
   {
+    id: "antigravity",
+    label: "Antigravity IDE",
+    resolveSkillsDir(home) {
+      const root = join(home, ".gemini", "antigravity");
+      return isDirectory(root) ? join(root, "skills") : null;
+    },
+  },
+  {
     id: "windsurf",
     label: "Windsurf",
     resolveSkillsDir(home) {
