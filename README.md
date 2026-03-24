@@ -27,11 +27,13 @@ If you use Cursor, Codex, Claude Code, VS Code, or similar hosts, Dockyard fits 
 
 ---
 
-## Install
+## Install from npm (recommended)
 
-### From npm (registry)
+The published package includes **pre-built** `dist/` and `dashboard/dist`—**no clone, no `pnpm install` in this repo, and no `pnpm run build`** after you install from the registry.
 
-The published package includes **pre-built** `dist/` and `dashboard/dist`—no compile step after install.
+**What you do *not* need for normal use:** running **`pnpm start`**, **`node dist/index.js`**, or any other **manual “start the server”** step. Your **MCP host** (Cursor, VS Code, Codex, Claude Code, etc.) launches the installed **`dockyard-mcp`** entrypoint when a session needs it—the same process serves **stdio MCP**, the **HTTP API**, and the **built-in dashboard** on **`DOCKYARD_PORT`**. Work orders live under **`~/.dockyard`** (or **`DOCKYARD_ROOT`**). The **`dockyard`** CLI is optional for humans and scripts; agents typically use **MCP tools** only.
+
+After install, do the **one-time** [Registering MCP and skills](#registering-mcp-and-skills) step, then you can [prompt your agent](#example-prompt-your-agent-after-setup) in plain language. Skip [Install from source](#install-from-source-optional) unless you are developing Dockyard or must run from a local checkout.
 
 ```bash
 npm install -g dockyard-mcp
@@ -51,11 +53,42 @@ Run without a global install:
 npx dockyard-mcp --help
 ```
 
-Then continue with **[Register MCP + skills](#registering-mcp-and-skills)** below (the CLI resolves its own install path for `install-agents` / `install-skills`).
+The global **`dockyard`** command resolves the installed package path for **`install-agents`** / **`install-skills`** automatically.
 
 ---
 
-### From source (clone, tarball, or local folder)
+## Registering MCP and skills
+
+1. **Register MCP + skills in your editors** (only **`pnpm run build`** is required when you use a **source** checkout without the pre-built npm layout; **npm installs already ship `dist/` and `dashboard/dist`**):
+
+   ```bash
+   dockyard install-agents --list
+   dockyard install-agents --dry-run
+   dockyard install-agents
+   ```
+
+   ```bash
+   dockyard install-skills --list
+   dockyard install-skills
+   ```
+
+   Restart each host app (Cursor, VS Code, Codex, etc.) after MCP config changes. The skill **`dockyard-session-guide`** tells agents that Dockyard uses MCP **tools** (`workorder_*`), not MCP **resources** — so “list resources” may be empty while Dockyard is still available. Details and target tables: [docs/agent-workflow.md](docs/agent-workflow.md).
+
+---
+
+## Example: prompt your agent (after setup)
+
+Once **`install-agents`** and **`install-skills`** are done and the host has been restarted, you can steer the model with a single chat instruction—no need to run Dockyard manually. For example:
+
+> Use the **Dockyard** MCP tools and the **GitHub CLI** (`gh`). In this workspace’s GitHub repo, get issue **`###`** (full title, body, and any labels), then create **focused Dockyard work orders** with **`workorder_insert`**: one order per concrete unit of work, using **today’s date** (`YYYY-MM-DD`), an **`issue`** slug derived from that GitHub issue, a **`repo`** slug that matches how we organize this project (e.g. the repo or app name), and markdown **`content`** bodies that include **every** required `##` section from **Objective** through **Notes** (use the **dockyard-insert-work-order** skill). If there is already a queue, start with **`workorder_list_pending`**.
+
+Adjust the issue reference (`###`), repo naming, and how you split work to match your team. The same idea works without GitHub: *“Use Dockyard to break the following goal into work orders …”*.
+
+---
+
+## Install from source (optional)
+
+**Manual path — not required if you installed from npm.** Use this when developing Dockyard or running from a clone/tarball without the registry package.
 
 For development or if you prefer to build yourself:
 
@@ -100,26 +133,11 @@ For development or if you prefer to build yourself:
 
    Until you link or use the full path, examples below assume `dockyard` is available.
 
-## Registering MCP and skills
-
-1. **Register MCP + skills in your editors** (after `pnpm run build` when using **from source**; from **npm**, pre-built assets are already in the installed package):
-
-   ```bash
-   dockyard install-agents --list
-   dockyard install-agents --dry-run
-   dockyard install-agents
-   ```
-
-   ```bash
-   dockyard install-skills --list
-   dockyard install-skills
-   ```
-
-   Restart each host app (Cursor, VS Code, Codex, etc.) after MCP config changes. The skill **`dockyard-session-guide`** tells agents that Dockyard uses MCP **tools** (`workorder_*`), not MCP **resources** — so “list resources” may be empty while Dockyard is still available. Details and target tables: [docs/agent-workflow.md](docs/agent-workflow.md).
-
 ---
 
 ## Run the server
+
+**If you installed from npm and only use Dockyard through your editor’s MCP config, you can skip this section** — the host already starts **`node …/dockyard-mcp/dist/index.js`** for you. Use this when you are working **from a source clone** and want to run the same entrypoint yourself (debugging, or using HTTP/CLI without an IDE).
 
 From the package root, after `pnpm run build`:
 
@@ -230,7 +248,7 @@ Silent on success; errors go to stderr.
 
 - **Optional:** `--package-root <path>` — repo root with `dist/`, `dashboard/`, `node_modules` (default: inferred from the CLI).
 
-Requires `pnpm run build`. Uses the same `DOCKYARD_ROOT` / `DOCKYARD_PORT` as MCP.
+**npm install:** `dist/` and `dashboard/dist` are already present. **Source checkout:** run `pnpm run build` first if those directories are missing. Uses the same `DOCKYARD_ROOT` / `DOCKYARD_PORT` as MCP.
 
 ```bash
 dockyard dashboard on
@@ -260,7 +278,7 @@ dockyard install-agents
 dockyard install-agents --force --targets cursor,codex
 ```
 
-If `dist/index.js` is missing, run `pnpm run build` first.
+If `dist/index.js` is missing (typical only for a **source** tree before a build), run `pnpm run build`. **Global npm installs** already include `dist/`.
 
 ---
 
@@ -336,9 +354,9 @@ Default: `DOCKYARD_ROOT` = `~/.dockyard`.
 | Problem | What to try |
 |---------|-------------|
 | `dockyard: command not found` | Run `npm install -g dockyard-mcp`, or `pnpm link --global` from a source clone, or use `node /path/to/dist/cli.js` |
-| `Server script not found` on `install-agents` | Run `pnpm run build` |
+| `Server script not found` on `install-agents` | From **source**, run `pnpm run build`. From **npm**, reinstall or check that the global package’s `dist/index.js` exists. |
 | MCP server fails to start in the IDE | Ensure `node` is on PATH; check `DOCKYARD_ROOT` paths; restart the IDE |
-| Dashboard 404 | Run `pnpm run build` so `dashboard/dist` exists; `pnpm start` serves it |
+| Dashboard 404 | **npm:** ensure the MCP process is running (IDE) or `dockyard dashboard on`; the API serves `dashboard/dist`. **Source:** run `pnpm run build` so `dashboard/dist` exists; `pnpm start` serves it |
 | Invalid JSON error during `install-agents` | Fix the target config file the error names; the installer refuses to overwrite broken JSON |
 
 ---
