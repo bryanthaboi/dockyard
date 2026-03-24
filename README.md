@@ -80,6 +80,10 @@ The global **`dockyard`** command resolves the installed package path for **`ins
 
 Once **`install-agents`** and **`install-skills`** are done and the host has been restarted, you can steer the model with a single chat instruction—no need to run Dockyard manually. For example:
 
+> use dockyard and gh cli to get issue 43 from this repo and make appropriately sized work orders
+
+If your agent wigs out and makes horrible work orders because you're using some non-smart model or something - try being super specific. But with the mcp server installed and all the skils installed the above should be enough. If not try the following:
+
 > Use the **Dockyard** MCP tools and the **GitHub CLI** (`gh`). In this workspace’s GitHub repo, get issue **`###`** (full title, body, and any labels), then create **focused Dockyard work orders** with **`workorder_insert`**: one order per concrete unit of work, using **today’s date** (`YYYY-MM-DD`), an **`issue`** slug derived from that GitHub issue, a **`repo`** slug that matches how we organize this project (e.g. the repo or app name), and markdown **`content`** bodies that include **every** required `##` section from **Objective** through **Notes** (use the **dockyard-insert-work-order** skill). If there is already a queue, start with **`workorder_list_pending`**.
 
 Adjust the issue reference (`###`), repo naming, and how you split work to match your team. The same idea works without GitHub: *“Use Dockyard to break the following goal into work orders …”*.
