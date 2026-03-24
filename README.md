@@ -13,13 +13,43 @@ If you use Cursor, Codex, Claude Code, VS Code, or similar hosts, Dockyard fits 
 ## Requirements
 
 - **Node.js 20+**
-- **pnpm** (recommended) or npm
+- **npm**, **pnpm**, or **yarn** (for installing the package or working from source)
 
 ---
 
-## Install (using it as a product, not hacking on the source)
+## Install
 
-1. **Get the package** (clone, unzip a release, or copy the folder).
+### From npm (registry)
+
+The published package includes **pre-built** `dist/` and `dashboard/dist`—no compile step after install.
+
+```bash
+npm install -g dockyard
+dockyard --help
+```
+
+```bash
+# or, with pnpm
+pnpm add -g dockyard
+```
+
+Run without a global install:
+
+```bash
+npx dockyard --help
+```
+
+If the package name `dockyard` is already taken on the public registry when you publish, use a [scoped name](https://docs.npmjs.com/cli/v10/using-npm/scope) (e.g. `@your-scope/dockyard`) in `package.json` instead.
+
+Then continue with **[Register MCP + skills](#registering-mcp-and-skills)** below (the `dockyard` CLI resolves its own install path for `install-agents` / `install-skills`).
+
+---
+
+### From source (clone, tarball, or local folder)
+
+For development or if you prefer to build yourself:
+
+1. **Get the source** (clone, unzip a release, or copy the folder).
 
 2. **Install dependencies** from the package root:
 
@@ -60,7 +90,9 @@ If you use Cursor, Codex, Claude Code, VS Code, or similar hosts, Dockyard fits 
 
    Until you link or use the full path, examples below assume `dockyard` is available.
 
-6. **Register MCP + skills in your editors** (after `pnpm run build`):
+## Registering MCP and skills
+
+1. **Register MCP + skills in your editors** (after `pnpm run build` when using **from source**; from **npm**, pre-built assets are already in the installed package):
 
    ```bash
    dockyard install-agents --list
@@ -264,6 +296,28 @@ Default: `DOCKYARD_ROOT` = `~/.dockyard`.
 
 - **Tool names:** `workorder_insert`, `workorder_get`, `workorder_list`, `workorder_list_pending`, `workorder_complete`, `workorder_next_number`, `workorder_validate_output`.
 - **Human-oriented workflow, HTTP table, validation caveats:** [docs/agent-workflow.md](docs/agent-workflow.md).
+
+---
+
+## Publishing to npm (maintainers)
+
+1. Bump **`version`** in [`package.json`](package.json).
+2. Ensure you are logged in: `npm login`.
+3. From the repo root:
+
+   ```bash
+   npm publish
+   ```
+
+   The **`prepack`** script runs **`npm run build`** so the tarball always contains fresh **`dist/`** and **`dashboard/dist/`**.
+
+4. Inspect the artifact without publishing:
+
+   ```bash
+   npm pack --dry-run
+   ```
+
+**Note:** This repo lists **`dashboard/`** in [`pnpm-workspace.yaml`](pnpm-workspace.yaml) for local dev. Publishing uses the **root** [`package.json`](package.json) only; the published tarball is defined by the **`files`** field there (not the dashboard workspace package).
 
 ---
 

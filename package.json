@@ -5,11 +5,30 @@
   "license": "GPL-3.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/bryanthaboi/dockyard"
+    "url": "git+https://github.com/bryanthaboi/dockyard.git"
   },
-  "homepage": "https://github.com/bryanthaboi/dockyard",
+  "homepage": "https://github.com/bryanthaboi/dockyard#readme",
   "bugs": {
     "url": "https://github.com/bryanthaboi/dockyard/issues"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "dashboard/dist",
+    "skills",
+    "dockyardlogo.txt",
+    ".env.example"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "keywords": [
     "mcp",
@@ -33,6 +52,7 @@
   },
   "scripts": {
     "build": "tsc && vite build --config dashboard/vite.config.ts",
+    "prepack": "npm run build",
     "link": "pnpm link --global",
     "start": "node dist/index.js",
     "dev": "concurrently -k \"tsx watch src/index.ts\" \"vite dev --config dashboard/vite.config.ts --port 5173\"",
