@@ -51,7 +51,7 @@ program
     "after",
     `
 Viewer (Vite + API for the same DOCKYARD_ROOT as MCP):
-  $ dockyard dashboard on     # background; prints http://127.0.0.1:5173 (or existing URL)
+  $ dockyard dashboard on     # prints dashboard URL (5173 with Vite, else API port for static UI)
   $ dockyard dashboard off    # stop processes started by dashboard on
   Needs: pnpm run build (dist/ + node_modules). API port from DOCKYARD_PORT (default 36969).
 

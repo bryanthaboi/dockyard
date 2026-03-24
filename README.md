@@ -131,7 +131,7 @@ pnpm run dev
 
 - **Production / `pnpm start`:** open `http://127.0.0.1:36969` (or your `DOCKYARD_PORT`).
 - **`pnpm run dev`:** use `http://127.0.0.1:5173` so the Vite dev server can proxy API calls to the backend.
-- **CLI viewer (after `pnpm run build`):** `dockyard dashboard on` starts Vite in the background (and a helper API if nothing is listening on `DOCKYARD_PORT`); `dockyard dashboard off` stops what `on` started. Same `DOCKYARD_ROOT` as MCP.
+- **CLI viewer:** `dockyard dashboard on` prints a URL to open. **From npm** (`dockyard-mcp`), that URL is the **HTTP API** (default `http://127.0.0.1:36969/`) serving the built dashboard—no Vite bundled. **From a dev clone** with Vite installed, it starts **Vite on 5173** (proxy to the API) when possible. A helper API process is only started if nothing is listening on `DOCKYARD_PORT`. `dockyard dashboard off` stops what `on` started.
 - **Branding assets:** put `logo.jpg` (or `favicon.svg`) in [`dashboard/public/`](dashboard/public/); they are copied into `dashboard/dist` at build time and served by the API or Vite. The header tries `/logo.jpg` first, then falls back to the bundled favicon.
 
 ---
@@ -213,7 +213,7 @@ Silent on success; errors go to stderr.
 
 | Command | Purpose |
 |---------|---------|
-| `dockyard dashboard on` | Start Vite in the background; print `http://127.0.0.1:5173` (or the chosen port). Starts a helper API on `DOCKYARD_PORT` only if nothing is already listening. |
+| `dockyard dashboard on` | Print a dashboard URL: **npm install** → API + static UI on `DOCKYARD_PORT` (e.g. `36969`); **source + Vite** → Vite dev on `5173` when `vite` is installed. Starts a helper API only if nothing listens on `DOCKYARD_PORT`. |
 | `dockyard dashboard off` | Stop processes recorded from the last `on` run. |
 
 **`dockyard dashboard on`**

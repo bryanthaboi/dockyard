@@ -8,9 +8,11 @@ const VITE_PORT = 5173;
 
 type ViewerState = {
   backendPid: number;
+  /** 0 = static dashboard (no Vite); otherwise detached Vite dev PID */
   vitePid: number;
   apiPort: number;
-  vitePort: number;
+  /** Port shown to the user (Vite dev port or API port for static bundle) */
+  viewerPort: number;
   startedBackend: boolean;
   startedAt: string;
 };
@@ -20,6 +22,7 @@ function statePath(): string {
 }
 
 function isAlive(pid: number): boolean {
+  if (pid <= 0) return false;
   try {
     process.kill(pid, 0);
     return true;
@@ -32,7 +35,11 @@ function readState(): ViewerState | null {
   const p = statePath();
   if (!existsSync(p)) return null;
   try {
-    return JSON.parse(readFileSync(p, "utf8")) as ViewerState;
+    const raw = JSON.parse(readFileSync(p, "utf8")) as ViewerState & { vitePort?: number };
+    if (raw.viewerPort == null && raw.vitePort != null) {
+      raw.viewerPort = raw.vitePort;
+    }
+    return raw as ViewerState;
   } catch {
     return null;
   }
@@ -85,14 +92,20 @@ function spawnDetached(
   return pid;
 }
 
-function resolveViteBin(packageRoot: string): string {
-  const require = createRequire(join(packageRoot, "package.json"));
-  const vitePkgJson = require.resolve("vite/package.json");
-  const bin = join(vitePkgJson, "..", "bin", "vite.js");
-  if (!existsSync(bin)) {
-    throw new Error(`Vite CLI missing at ${bin}; run pnpm install in the Dockyard package root`);
+function tryResolveViteBin(packageRoot: string): string | null {
+  try {
+    const require = createRequire(join(packageRoot, "package.json"));
+    const vitePkgJson = require.resolve("vite/package.json");
+    const bin = join(vitePkgJson, "..", "bin", "vite.js");
+    if (!existsSync(bin)) return null;
+    return bin;
+  } catch {
+    return null;
   }
-  return bin;
+}
+
+function hasStaticDashboard(packageRoot: string): boolean {
+  return existsSync(join(packageRoot, "dashboard", "dist", "index.html"));
 }
 
 export async function dashboardOn(packageRoot: string): Promise<void> {
@@ -105,10 +118,15 @@ export async function dashboardOn(packageRoot: string): Promise<void> {
   const apiPort = resolvePort();
   const existing = readState();
   if (existing) {
-    const viteOk = isAlive(existing.vitePid);
+    const viteRunning = existing.vitePid > 0 && isAlive(existing.vitePid);
+    const staticMode = existing.vitePid === 0;
     const backendOk = existing.startedBackend ? isAlive(existing.backendPid) : true;
-    if (viteOk && (!existing.startedBackend || backendOk)) {
-      console.log(`http://127.0.0.1:${existing.vitePort}`);
+    const apiOk = await apiAlreadyUp(existing.apiPort);
+    const sessionOk =
+      (viteRunning || (staticMode && apiOk)) && (!existing.startedBackend || backendOk);
+    if (sessionOk) {
+      const url = `http://127.0.0.1:${existing.viewerPort}`;
+      console.log(url);
       console.error(
         "(viewer already running — open the URL above; same work orders your MCP server writes under DOCKYARD_ROOT)",
       );
@@ -133,19 +151,41 @@ export async function dashboardOn(packageRoot: string): Promise<void> {
     await waitForHealth(apiPort);
   }
 
-  let vitePid: number;
-  try {
-    const viteBin = resolveViteBin(packageRoot);
-    vitePid = spawnDetached(process.execPath, [
-      viteBin,
-      "dev",
-      "--config",
-      "dashboard/vite.config.ts",
-      "--port",
-      String(VITE_PORT),
-      "--strictPort",
-    ], { cwd: packageRoot });
-  } catch (e) {
+  const viteBin = tryResolveViteBin(packageRoot);
+  const viteConfig = join(packageRoot, "dashboard", "vite.config.ts");
+  const canViteDev = Boolean(viteBin && existsSync(viteConfig));
+
+  let vitePid = 0;
+  let viewerPort: number;
+
+  if (canViteDev) {
+    try {
+      vitePid = spawnDetached(process.execPath, [
+        viteBin!,
+        "dev",
+        "--config",
+        "dashboard/vite.config.ts",
+        "--port",
+        String(VITE_PORT),
+        "--strictPort",
+      ], { cwd: packageRoot });
+      viewerPort = VITE_PORT;
+    } catch (e) {
+      if (startedBackend && backendPid > 0) {
+        try {
+          process.kill(backendPid, "SIGTERM");
+        } catch {
+          /* ignore */
+        }
+      }
+      throw e;
+    }
+  } else if (hasStaticDashboard(packageRoot)) {
+    viewerPort = apiPort;
+    console.error(
+      "Vite not installed (normal for npm installs) — using the dashboard bundled with the HTTP API.",
+    );
+  } else {
     if (startedBackend && backendPid > 0) {
       try {
         process.kill(backendPid, "SIGTERM");
@@ -153,25 +193,26 @@ export async function dashboardOn(packageRoot: string): Promise<void> {
         /* ignore */
       }
     }
-    throw e;
+    console.error(
+      "Cannot start dashboard: no Vite dev deps and no dashboard/dist/index.html. Run `pnpm run build` from the Dockyard source tree, or reinstall the published package.",
+    );
+    process.exit(1);
   }
 
   writeState({
     backendPid: startedBackend ? backendPid : 0,
     vitePid,
     apiPort,
-    vitePort: VITE_PORT,
+    viewerPort,
     startedBackend,
     startedAt: new Date().toISOString(),
   });
 
-  console.log(`http://127.0.0.1:36969`);
-  console.error(
-    "Open the URL in your browser — shows work orders on disk.",
-  );
+  console.log(`http://127.0.0.1:${viewerPort}/`);
+  console.error("Open the URL in your browser — work orders on disk (same DOCKYARD_ROOT as MCP).");
   if (!startedBackend) {
     console.error(
-      `(use "dockyard dashboard off" to turn the dashboard off.)`,
+      `(API already on port ${apiPort}; "dockyard dashboard off" only stops a helper or Vite we started.)`,
     );
   }
 }
@@ -183,7 +224,9 @@ export function dashboardOff(): void {
     process.exit(1);
   }
 
-  if (isAlive(s.vitePid)) {
+  const viewerPort = s.viewerPort ?? (s as { vitePort?: number }).vitePort ?? VITE_PORT;
+
+  if (s.vitePid > 0 && isAlive(s.vitePid)) {
     try {
       process.kill(s.vitePid, "SIGTERM");
     } catch {
@@ -205,5 +248,8 @@ export function dashboardOff(): void {
     /* ignore */
   }
 
-  console.error("Viewer stopped (Vite" + (s.startedBackend ? " + local API helper" : "") + ").");
+  const mode =
+    s.vitePid > 0 ? "Vite dev + " : viewerPort === s.apiPort ? "static UI + " : "";
+  const backendNote = s.startedBackend ? "local API helper" : "external API";
+  console.error(`Viewer stopped (${mode}${backendNote}).`);
 }
