@@ -30,10 +30,10 @@ Use when MCP tools are not callable in this session:
 | MCP tool | Shell |
 | -------- | ----- |
 | `workorder_list_pending` | `dockyard pending` (optional `--date`, `--repo`, `--issue`; TSV includes **repo**) |
-| `workorder_list` | `dockyard list --repo REPO --issue SLUG --date YYYY-MM-DD` (omit `--repo` if unambiguous) |
+| `workorder_list` | `dockyard list --repo REPO [--issue SLUG] --date YYYY-MM-DD` (`repo` required; omit `--issue` to list all tracks under the repo) |
 | `workorder_complete` | `dockyard complete --repo REPO --issue SLUG --date YYYY-MM-DD --id wo-NNN` |
 | `workorder_insert` | `dockyard insert --repo REPO --issue SLUG --date YYYY-MM-DD < body.md` (repo defaults to **default**) |
-| `workorder_get` | No `dockyard get`: read `~/.dockyard/<date>/<repo>/<issue>/<id>.md`, or `GET …/work-orders/<date>/<repo>/<issue>/<id>` (older trees: repo **`legacy`**) |
+| `workorder_get` | No `dockyard get`: read `~/.dockyard/<date>/<repo>/<issue>/<id>.md`, or `GET …/work-orders/<date>/<repo>/<issue>/<id>` |
 
 Env: `DOCKYARD_ROOT`, `DOCKYARD_PORT` (default **36969**).
 

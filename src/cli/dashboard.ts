@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -57,6 +57,110 @@ async function apiAlreadyUp(port: number): Promise<boolean> {
     return r.ok;
   } catch {
     return false;
+  }
+}
+
+async function waitUntilPortClosed(port: number, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!(await apiAlreadyUp(port))) return;
+    await new Promise((r) => setTimeout(r, 150));
+  }
+}
+
+/** PIDs listening on TCP `port` (excludes current process). macOS/Linux: lsof. Windows: netstat. */
+function getListenPids(port: number): number[] {
+  if (process.platform === "win32") {
+    try {
+      const out = execFileSync("cmd", ["/c", "netstat -ano"], {
+        encoding: "utf8",
+        maxBuffer: 1024 * 1024,
+      });
+      const pids = new Set<number>();
+      for (const line of out.split(/\r?\n/)) {
+        if (!line.includes("LISTENING") || !line.includes(`:${port}`)) continue;
+        const m = line.trim().match(/LISTENING\s+(\d+)\s*$/);
+        if (m) {
+          const n = parseInt(m[1]!, 10);
+          if (!Number.isNaN(n) && n > 0 && n !== process.pid) pids.add(n);
+        }
+      }
+      return [...pids];
+    } catch {
+      return [];
+    }
+  }
+  try {
+    const out = execFileSync("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-t"], {
+      encoding: "utf8",
+      maxBuffer: 1024 * 1024,
+    }).trim();
+    if (!out) return [];
+    const pids = new Set<number>();
+    for (const line of out.split(/\n/)) {
+      const n = parseInt(line.trim(), 10);
+      if (!Number.isNaN(n) && n > 0 && n !== process.pid) pids.add(n);
+    }
+    return [...pids];
+  } catch {
+    return [];
+  }
+}
+
+function killPid(pid: number, sig: NodeJS.Signals | "SIGKILL"): void {
+  if (process.platform === "win32" && sig === "SIGKILL") {
+    try {
+      execFileSync("taskkill", ["/PID", String(pid), "/F"], { stdio: "ignore" });
+    } catch {
+      try {
+        process.kill(pid, "SIGKILL");
+      } catch {
+        /* ignore */
+      }
+    }
+    return;
+  }
+  process.kill(pid, sig);
+}
+
+/**
+ * SIGTERM listeners on `port`, wait, then SIGKILL if /health still responds.
+ * @throws if the port stays busy after kills (caller should exit).
+ */
+async function killListenersOnPort(port: number): Promise<void> {
+  let pids = getListenPids(port);
+  if (pids.length === 0 && (await apiAlreadyUp(port))) {
+    throw new Error(
+      `Port ${port} is in use but no listener PID was found (install/use lsof on macOS/Linux, or stop the process yourself).`,
+    );
+  }
+  if (pids.length === 0) return;
+
+  for (const pid of pids) {
+    try {
+      killPid(pid, "SIGTERM");
+      console.error(`Sent SIGTERM to PID ${pid} (listener on port ${port}).`);
+    } catch (e) {
+      console.error(`SIGTERM PID ${pid}: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+  await waitUntilPortClosed(port, 5000);
+
+  if (await apiAlreadyUp(port)) {
+    pids = getListenPids(port);
+    for (const pid of pids) {
+      try {
+        killPid(pid, "SIGKILL");
+        console.error(`Sent SIGKILL to PID ${pid} (port ${port} still up).`);
+      } catch (e) {
+        console.error(`SIGKILL PID ${pid}: ${e instanceof Error ? e.message : e}`);
+      }
+    }
+    await waitUntilPortClosed(port, 4000);
+  }
+
+  if (await apiAlreadyUp(port)) {
+    throw new Error(`Port ${port} still serves /health after kill — stop it manually (e.g. lsof -nP -iTCP:${port} -sTCP:LISTEN).`);
   }
 }
 
@@ -143,9 +247,16 @@ export async function dashboardOn(packageRoot: string): Promise<void> {
   let startedBackend = false;
 
   if (!(await apiAlreadyUp(apiPort))) {
+    const dockyardEnv: Record<string, string> = {
+      DOCKYARD_VISUALIZER: "1",
+      DOCKYARD_ROOT: resolveDockyardRoot(),
+    };
+    if (process.env.DOCKYARD_PORT) {
+      dockyardEnv.DOCKYARD_PORT = process.env.DOCKYARD_PORT;
+    }
     backendPid = spawnDetached(process.execPath, [indexJs], {
       cwd: packageRoot,
-      env: { DOCKYARD_VISUALIZER: "1" },
+      env: dockyardEnv,
     });
     startedBackend = true;
     await waitForHealth(apiPort);
@@ -212,31 +323,42 @@ export async function dashboardOn(packageRoot: string): Promise<void> {
   console.error("Open the URL in your browser — work orders on disk (same DOCKYARD_ROOT as MCP).");
   if (!startedBackend) {
     console.error(
-      `(API already on port ${apiPort}; "dockyard dashboard off" only stops a helper or Vite we started.)`,
+      `(API already on port ${apiPort}; "dockyard dashboard off" only stops a helper or Vite this CLI started — not your IDE MCP server.)`,
     );
   }
 }
 
-export function dashboardOff(): void {
+export type DashboardStopResult = {
+  killedVite: boolean;
+  killedBackend: boolean;
+  hadStartedBackend: boolean;
+  apiPort: number;
+  hadVite: boolean;
+};
+
+/**
+ * Stops Vite and/or the helper `node dist/index.js` recorded in `.dockyard-viewer.json`.
+ * Does not stop whatever else is listening on `apiPort` (e.g. Dockyard launched as MCP from an IDE).
+ */
+export function stopDashboardViewer(): DashboardStopResult | null {
   const s = readState();
-  if (!s) {
-    console.error("No saved viewer state — nothing to stop (look for .dockyard-viewer.json under DOCKYARD_ROOT).");
-    process.exit(1);
-  }
+  if (!s) return null;
 
-  const viewerPort = s.viewerPort ?? (s as { vitePort?: number }).vitePort ?? VITE_PORT;
-
+  let killedVite = false;
   if (s.vitePid > 0 && isAlive(s.vitePid)) {
     try {
       process.kill(s.vitePid, "SIGTERM");
+      killedVite = true;
     } catch {
       /* ignore */
     }
   }
 
+  let killedBackend = false;
   if (s.startedBackend && s.backendPid > 0 && isAlive(s.backendPid)) {
     try {
       process.kill(s.backendPid, "SIGTERM");
+      killedBackend = true;
     } catch {
       /* ignore */
     }
@@ -248,8 +370,66 @@ export function dashboardOff(): void {
     /* ignore */
   }
 
-  const mode =
-    s.vitePid > 0 ? "Vite dev + " : viewerPort === s.apiPort ? "static UI + " : "";
-  const backendNote = s.startedBackend ? "local API helper" : "external API";
-  console.error(`Viewer stopped (${mode}${backendNote}).`);
+  return {
+    killedVite,
+    killedBackend,
+    hadStartedBackend: s.startedBackend,
+    apiPort: s.apiPort,
+    hadVite: s.vitePid > 0,
+  };
+}
+
+export function dashboardOff(): void {
+  const r = stopDashboardViewer();
+  if (!r) {
+    console.error(
+      "No saved viewer state — nothing to stop. Expected ~/.dockyard/.dockyard-viewer.json (or DOCKYARD_ROOT/.dockyard-viewer.json).",
+    );
+    console.error(
+      "If something is still on DOCKYARD_PORT, it is not tracked here — usually the MCP server in your editor; restart Dockyard from the host app, or find the PID (e.g. lsof -i :36969).",
+    );
+    process.exit(1);
+  }
+
+  const parts: string[] = [];
+  if (r.killedVite) parts.push("Vite dev server");
+  if (r.killedBackend) parts.push("helper HTTP API");
+  if (parts.length === 0) parts.push("no running PIDs from last state (already exited?)");
+  console.error(`Stopped: ${parts.join(", ")}.`);
+
+  if (!r.hadStartedBackend) {
+    console.error(
+      `Did not stop the process on port ${r.apiPort} — \`dashboard on\` did not start it (likely your IDE MCP server). Restart MCP there to load a new build.`,
+    );
+  } else if (!r.killedBackend && r.hadStartedBackend) {
+    console.error("Helper API PID was already gone; port may still be in use by another process.");
+  }
+}
+
+/**
+ * Stop Vite + recorded helper, kill **whatever is listening on DOCKYARD_PORT** (including IDE MCP),
+ * then run `dashboard on` (fresh helper + viewer). Cursor/VS Code will lose MCP until you re-enable the server.
+ */
+export async function dashboardRestart(packageRoot: string): Promise<void> {
+  const port = resolvePort();
+  const r = stopDashboardViewer();
+  if (r) {
+    const parts: string[] = [];
+    if (r.killedVite) parts.push("Vite");
+    if (r.killedBackend) parts.push("helper API");
+    if (parts.length) console.error(`Stopped (from state): ${parts.join(", ")}.`);
+  }
+
+  if (await apiAlreadyUp(port)) {
+    console.error(`Killing listener(s) on port ${port}…`);
+    try {
+      await killListenersOnPort(port);
+    } catch (e) {
+      console.error(e instanceof Error ? e.message : e);
+      process.exit(1);
+    }
+    console.error(`Port ${port} is free.`);
+  }
+
+  await dashboardOn(packageRoot);
 }

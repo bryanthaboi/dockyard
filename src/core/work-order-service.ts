@@ -1,9 +1,13 @@
 import { access, stat } from "node:fs/promises";
 import { constants as FsConstants } from "node:fs";
-import { indexJsonSchema, type IndexJson, type PendingWorkOrderRef, type WorkOrderMeta } from "./schemas.js";
+import {
+  indexJsonSchema,
+  type IndexJson,
+  type ListedWorkOrder,
+  type PendingWorkOrderRef,
+} from "./schemas.js";
 import { IndexCache } from "./index-cache.js";
 import {
-  LEGACY_REPO,
   atomicWriteFile,
   ensureDir,
   indexPath,
@@ -82,7 +86,6 @@ export class WorkOrderService {
 
   private normalizeRepoParam(repo: string | undefined): string {
     if (repo == null || repo === "") return sanitizeRepoSlug("default");
-    if (repo === LEGACY_REPO) return LEGACY_REPO;
     return sanitizeRepoSlug(repo);
   }
 
@@ -90,7 +93,7 @@ export class WorkOrderService {
   private async resolveRepoForRead(date: string, issueInput: string, repoInput?: string): Promise<string> {
     const slug = sanitizeIssueSlug(issueInput);
     if (repoInput != null && repoInput !== "") {
-      return repoInput === LEGACY_REPO ? LEGACY_REPO : sanitizeRepoSlug(repoInput);
+      return sanitizeRepoSlug(repoInput);
     }
     const tracks = await listTracksForDate(this.root, date);
     const matches = tracks.filter((t) => t.issue === slug);
@@ -158,7 +161,7 @@ export class WorkOrderService {
     const slug = sanitizeIssueSlug(issue);
     let repoSlug: string;
     if (repo != null && repo !== "") {
-      repoSlug = repo === LEGACY_REPO ? LEGACY_REPO : sanitizeRepoSlug(repo);
+      repoSlug = sanitizeRepoSlug(repo);
     } else {
       const tracks = await listTracksForDate(this.root, date);
       const hits = tracks.filter((t) => t.issue === slug);
@@ -237,17 +240,42 @@ export class WorkOrderService {
     return { markdown, status: meta.status, repo };
   }
 
-  async listWorkOrders(params: { date: string; repo?: string; issue: string }): Promise<WorkOrderMeta[]> {
-    const slug = sanitizeIssueSlug(params.issue);
-    const repo = await this.resolveRepoForRead(params.date, params.issue, params.repo);
-    const path = indexPath(this.root, params.date, repo, slug);
-    try {
-      await access(path, FsConstants.R_OK);
-    } catch {
-      return [];
+  async listWorkOrders(params: { date: string; repo: string; issue?: string }): Promise<ListedWorkOrder[]> {
+    const date = params.date;
+    const repoSan = sanitizeRepoSlug(params.repo);
+
+    if (params.issue != null && params.issue !== "") {
+      const issueSan = sanitizeIssueSlug(params.issue);
+      const path = indexPath(this.root, date, repoSan, issueSan);
+      try {
+        await access(path, FsConstants.R_OK);
+      } catch {
+        return [];
+      }
+      const index = await this.readIndex(date, repoSan, issueSan);
+      return index.workOrders.map((w) => ({ id: w.id, status: w.status, issue: issueSan }));
     }
-    const index = await this.readIndex(params.date, repo, slug);
-    return index.workOrders.map((w) => ({ id: w.id, status: w.status }));
+
+    const tracks = await listTracksForDate(this.root, date);
+    const out: ListedWorkOrder[] = [];
+    for (const t of tracks) {
+      if (sanitizeRepoSlug(t.repo) !== repoSan) continue;
+      const path = indexPath(this.root, date, t.repo, t.issue);
+      try {
+        await access(path, FsConstants.R_OK);
+      } catch {
+        continue;
+      }
+      const index = await this.readIndex(date, t.repo, t.issue);
+      for (const w of index.workOrders) {
+        out.push({ id: w.id, status: w.status, issue: t.issue });
+      }
+    }
+    out.sort((a, b) => {
+      if (a.issue !== b.issue) return a.issue.localeCompare(b.issue);
+      return parseWoSequence(a.id) - parseWoSequence(b.id);
+    });
+    return out;
   }
 
   async getPendingWorkOrders(params: {
@@ -258,19 +286,15 @@ export class WorkOrderService {
     const out: PendingWorkOrderRef[] = [];
     const issueFilter = params.issue ? sanitizeIssueSlug(params.issue) : undefined;
     const repoFilter =
-      params.repo != null && params.repo !== ""
-        ? params.repo === LEGACY_REPO
-          ? LEGACY_REPO
-          : sanitizeRepoSlug(params.repo)
-        : undefined;
+      params.repo != null && params.repo !== "" ? sanitizeRepoSlug(params.repo) : undefined;
 
     const dates = params.date ? [params.date] : await listDateDirs(this.root);
 
     for (const date of dates) {
       const tracks = await listTracksForDate(this.root, date);
       for (const { repo, issue } of tracks) {
-        if (repoFilter != null && repo !== repoFilter) continue;
-        if (issueFilter != null && issue !== issueFilter) continue;
+        if (repoFilter != null && sanitizeRepoSlug(repo) !== repoFilter) continue;
+        if (issueFilter != null && sanitizeIssueSlug(issue) !== issueFilter) continue;
         const path = indexPath(this.root, date, repo, issue);
         try {
           await access(path, FsConstants.R_OK);

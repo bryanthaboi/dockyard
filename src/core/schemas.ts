@@ -29,6 +29,9 @@ export const workOrderMetaSchema = z.object({
 
 export type WorkOrderMeta = z.infer<typeof workOrderMetaSchema>;
 
+/** From list APIs: always includes issue folder (for repo-wide lists, issue varies per row). */
+export type ListedWorkOrder = WorkOrderMeta & { issue: string };
+
 export const pendingWorkOrderSchema = workOrderMetaSchema.extend({
   date: z.string().regex(DATE_DIR_REGEX),
   repo: z.string().min(1),

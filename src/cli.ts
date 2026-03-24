@@ -7,7 +7,7 @@ import { Command } from "commander";
 import { resolveDockyardRoot } from "./config.js";
 import { WorkOrderService } from "./core/work-order-service.js";
 import { installBundledSkills, listDetectedSkillRoots } from "./install/skill-install.js";
-import { dashboardOff, dashboardOn } from "./cli/dashboard.js";
+import { dashboardOff, dashboardOn, dashboardRestart } from "./cli/dashboard.js";
 import { installDockyardAgents, listDetectedTargets } from "./install/run.js";
 
 function todayLocal(): string {
@@ -51,11 +51,12 @@ program
     "after",
     `
 Viewer (Vite + API for the same DOCKYARD_ROOT as MCP):
-  $ dockyard dashboard on     # prints dashboard URL (5173 with Vite, else API port for static UI)
-  $ dockyard dashboard off    # stop processes started by dashboard on
+  $ dockyard dashboard on       # prints dashboard URL (5173 with Vite, else API port for static UI)
+  $ dockyard dashboard off      # stop Vite/helper this CLI started (not IDE MCP)
+  $ dockyard dashboard restart  # kills port listener + fresh on (re-enable MCP in IDE after)
   Needs: pnpm run build (dist/ + node_modules). API port from DOCKYARD_PORT (default 36969).
 
-Layout on disk: DOCKYARD_ROOT/<date>/<repo>/<issue>/wo-NNN.md (older data may use date/<issue>/ only; API exposes that as repo "legacy").
+Layout on disk: DOCKYARD_ROOT/<date>/<repo>/<issue>/wo-NNN.md.
 
 by bryanthaboi — https://boisclub.games
 `,
@@ -78,9 +79,22 @@ dashboard
 
 dashboard
   .command("off")
-  .description("Stop the viewer (and helper API) started by dashboard on")
+  .description(
+    "Stop Vite and/or the helper API recorded in .dockyard-viewer.json (does not stop IDE MCP on DOCKYARD_PORT)",
+  )
   .action(() => {
     dashboardOff();
+  });
+
+dashboard
+  .command("restart")
+  .description(
+    "Kill listener on DOCKYARD_PORT (incl. IDE MCP), then dashboard on — full HTTP + viewer restart; IDE MCP must be re-enabled",
+  )
+  .option("--package-root <path>", "Dockyard package root (contains dist/, dashboard/, node_modules)")
+  .action(async (opts: { packageRoot?: string }) => {
+    const root = opts.packageRoot ?? defaultPackageRoot();
+    await dashboardRestart(root);
   });
 
 program
@@ -88,10 +102,11 @@ program
   .description("Insert a work order (markdown from stdin unless --file)")
   .requiredOption("--issue <slug>", "Issue name or slug")
   .option("--repo <slug>", "Repo folder under the date (default: default)", "default")
-  .option("--date <ymd>", "Date folder YYYY-MM-DD", todayLocal)
+  .option("--date <ymd>", "Date folder YYYY-MM-DD")
   .option("--file <path>", "Read markdown from file (- for stdin explicitly)")
-  .action(async (opts: { issue: string; date: string; repo?: string; file?: string }) => {
+  .action(async (opts: { issue: string; date?: string; repo?: string; file?: string }) => {
     const service = new WorkOrderService(resolveDockyardRoot());
+    const date = opts.date ?? todayLocal();
     const content = readContent(opts.file);
     if (!content.trim()) {
       console.error("No content: pipe markdown or use --file");
@@ -99,7 +114,7 @@ program
     }
     try {
       const { id } = await service.insertWorkOrder({
-        date: opts.date,
+        date,
         repo: opts.repo,
         issue: opts.issue,
         content,
@@ -113,15 +128,19 @@ program
 
 program
   .command("list")
-  .description("List work orders for an issue on a date (defaults --date to today)")
-  .requiredOption("--issue <slug>", "Issue name or slug")
-  .option("--repo <slug>", "Repo folder (omit if only one match; use legacy for old date/issue layout)")
-  .option("--date <ymd>", "Date folder YYYY-MM-DD", todayLocal)
-  .action(async (opts: { issue: string; date: string; repo?: string }) => {
+  .description(
+    "List work orders for a repo on a date (defaults --date to today). With --issue, one track; without, all issues under the repo.",
+  )
+  .requiredOption("--repo <slug>", "Repo folder under the date")
+  .option("--issue <slug>", "Issue track (omit to list every issue under --repo)")
+  .option("--date <ymd>", "Date folder YYYY-MM-DD")
+  .action(async (opts: { repo: string; issue?: string; date?: string }) => {
     const service = new WorkOrderService(resolveDockyardRoot());
-    const workOrders = await service.listWorkOrders(opts);
+    const date = opts.date ?? todayLocal();
+    const workOrders = await service.listWorkOrders({ date, repo: opts.repo, issue: opts.issue });
+    const multi = opts.issue == null || opts.issue === "";
     for (const w of workOrders) {
-      console.log(`${w.id}\t${w.status}`);
+      console.log(multi ? `${w.issue}\t${w.id}\t${w.status}` : `${w.id}\t${w.status}`);
     }
   });
 
@@ -147,7 +166,7 @@ program
   .command("complete")
   .description("Mark a work order complete")
   .requiredOption("--issue <slug>", "Issue name or slug")
-  .option("--repo <slug>", "Repo folder (omit if unambiguous; legacy for old layout)")
+  .option("--repo <slug>", "Repo folder (omit if unambiguous)")
   .requiredOption("--date <ymd>", "Date folder YYYY-MM-DD")
   .requiredOption("--id <woId>", "Work order id e.g. wo-001")
   .action(async (opts: { issue: string; date: string; id: string; repo?: string }) => {

@@ -21,7 +21,7 @@ export function createDockyardMcpServer(service: WorkOrderService): McpServer {
     { name: "dockyard", version: "0.1.0" },
     {
       instructions:
-        "Dockyard: work orders on disk under DOCKYARD_ROOT as date/repo/issue/wo-NNN.md (repo defaults to default; older data may use virtual repo legacy for date/issue-only folders). MCP TOOLS workorder_* — not resources. Queue: workorder_list_pending → workorder_get (pass repo from each pending row) → workorder_complete. CLI: dockyard pending / list / complete.",
+        "Dockyard: work orders on disk under DOCKYARD_ROOT as date/repo/issue/wo-NNN.md (repo defaults to default on insert). MCP TOOLS workorder_* — not resources. Queue: workorder_list_pending → workorder_get (pass repo from each pending row) → workorder_complete. workorder_list requires date+repo; issue optional. CLI: dockyard pending / list / complete.",
     },
   );
 
@@ -79,11 +79,12 @@ export function createDockyardMcpServer(service: WorkOrderService): McpServer {
   server.registerTool(
     "workorder_list",
     {
-      description: "List work order ids and statuses for a date/repo/issue folder. Omit repo if unambiguous.",
+      description:
+        "List work order ids and statuses for a date and repo. Pass issue to scope to one track; omit issue to list all issues under that repo. Each item includes issue when listing multiple tracks.",
       inputSchema: {
         date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-        repo: z.string().min(1).optional(),
-        issue: z.string().min(1),
+        repo: z.string().min(1),
+        issue: z.string().min(1).optional(),
       },
     },
     async ({ date, repo, issue }) => {

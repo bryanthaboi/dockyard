@@ -3,9 +3,6 @@ import { constants as FsConstants } from "node:fs";
 import { join } from "node:path";
 import { DATE_DIR_REGEX } from "./schemas.js";
 
-/** Virtual repo id for pre–repo-layout folders: `DOCKYARD_ROOT/date/<issue>/index.json` */
-export const LEGACY_REPO = "legacy";
-
 export function sanitizeIssueSlug(issue: string): string {
   const s = issue
     .trim()
@@ -23,12 +20,10 @@ export function sanitizeRepoSlug(repo: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   if (!s) throw new Error("Repo slug is empty after sanitization");
-  if (s === LEGACY_REPO) throw new Error(`Repo slug cannot be "${LEGACY_REPO}" (reserved)`);
   return s;
 }
 
 export function physicalIssueDir(root: string, date: string, repoSlug: string, issueSlug: string): string {
-  if (repoSlug === LEGACY_REPO) return join(root, date, issueSlug);
   return join(root, date, repoSlug, issueSlug);
 }
 
@@ -74,9 +69,7 @@ export async function listDateDirs(root: string): Promise<string[]> {
 
 export type IssueTrack = { repo: string; issue: string };
 
-/**
- * Discover issue tracks under a date: new layout `date/repo/issue/` and legacy `date/issue/index.json`.
- */
+/** Discover issue tracks: only `DOCKYARD_ROOT/<date>/<repo>/<issue>/index.json`. */
 export async function listTracksForDate(root: string, date: string): Promise<IssueTrack[]> {
   const datePath = join(root, date);
   let entries: import("node:fs").Dirent[];
@@ -92,13 +85,6 @@ export async function listTracksForDate(root: string, date: string): Promise<Iss
   for (const e of entries) {
     if (!e.isDirectory() || e.name.startsWith(".")) continue;
     const base = join(datePath, e.name);
-    try {
-      await access(join(base, "index.json"), FsConstants.R_OK);
-      out.push({ repo: LEGACY_REPO, issue: e.name });
-      continue;
-    } catch {
-      /* not legacy issue root */
-    }
     let subs: import("node:fs").Dirent[];
     try {
       subs = await readdir(base, { withFileTypes: true });

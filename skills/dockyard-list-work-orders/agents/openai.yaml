@@ -1,4 +1,4 @@
 interface:
   display_name: "Dockyard: list work orders"
-  short_description: "List WO ids for one date/issue via MCP"
-  default_prompt: "Use $dockyard-list-work-orders to enumerate Dockyard work orders for the given date and issue slug."
+  short_description: "List WO ids for date+repo (optional issue) via MCP"
+  default_prompt: "Use $dockyard-list-work-orders: workorder_list needs date and repo; pass issue only to scope to one track."

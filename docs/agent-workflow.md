@@ -11,7 +11,7 @@ Dockyard exposes **tools** (`workorder_insert`, `workorder_get`, `workorder_list
 ## Lifecycle
 
 1. Break a large task into focused units.
-2. For each unit, call **`workorder_insert`** with a `date` (`YYYY-MM-DD`), optional **`repo`** (folder under the date, e.g. git repo name; default `default`), `issue` slug (e.g. `auth-refactor`), and markdown `content` with every required `##` section (see template below). On disk: `DOCKYARD_ROOT/<date>/<repo>/<issue>/wo-NNN.md`. Older trees may be `date/<issue>/` only; the API exposes those as **`repo: legacy`**.
+2. For each unit, call **`workorder_insert`** with a `date` (`YYYY-MM-DD`), optional **`repo`** (folder under the date, e.g. git repo name; default `default`), `issue` slug (e.g. `auth-refactor`), and markdown `content` with every required `##` section (see template below). On disk: `DOCKYARD_ROOT/<date>/<repo>/<issue>/wo-NNN.md`.
 3. Poll **`workorder_list_pending`** (optional filters `date`, `repo`, `issue`). Each row includes **`repo`** — pass it into **`workorder_get`** / **`workorder_complete`** when multiple repos share an issue slug. Items sort by date, repo, issue, then id.
 4. Execute the work described in each pending order. Use **`workorder_get`** with `date`, `issue`, `woId`, and `repo` when needed.
 5. When finished, call **`workorder_complete`** for that `date`, **`repo`** (from the pending row), `issue`, and `woId`.
@@ -58,10 +58,10 @@ The checker uses a simple lowercase substring list: `work order`, `wo-`, `MCP`, 
 | Action            | Method and path |
 | ----------------- | ---------------- |
 | Create            | `POST /work-orders` (JSON: `date`, optional `repo`, `issue`, `content`) |
-| List for issue    | `GET /work-orders?date=&issue=` (optional `&repo=` to disambiguate) |
+| List for repo     | `GET /work-orders?date=&repo=` (optional `&issue=` for one track) |
 | List pending      | `GET /work-orders/pending` (optional `?date=&repo=&issue=`) |
-| Get one           | `GET /work-orders/:date/:repo/:issue/:woId` (legacy: same URL with three segments after `work-orders` for old `date/issue/` layout) |
-| Complete          | `PATCH /work-orders/:date/:repo/:issue/:woId/complete` (legacy three-segment path still supported) |
+| Get one           | `GET /work-orders/:date/:repo/:issue/:woId` |
+| Complete          | `PATCH /work-orders/:date/:repo/:issue/:woId/complete` |
 | List dates        | `GET /dates` |
 | List tracks       | `GET /issues?date=` → `{ tracks: [{ repo, issue }] }` |
 

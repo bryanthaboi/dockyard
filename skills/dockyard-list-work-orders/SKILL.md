@@ -1,18 +1,19 @@
 ---
 name: dockyard-list-work-orders
 description: >-
-  List work order ids and statuses for one date/issue folder via MCP workorder_list. Use when the user wants an overview of WOs for a specific day and issue, or to choose which wo-NNN to open next.
+  List work order ids and statuses via MCP workorder_list for a date and repo (optional issue). Use for one track (--issue) or all issues under a repo (omit issue).
 ---
 
-# List Dockyard work orders (one issue)
+# List Dockyard work orders (repo + date)
 
-MCP **tool** (`workorder_list`). Fallback: **`dockyard list --issue … --date …`**. See **`dockyard-session-guide`**.
+MCP **tool** (`workorder_list`). Fallback: **`dockyard list --repo … [--issue …] --date …`**. See **`dockyard-session-guide`**.
 
 ## Procedure
 
-1. Confirm `date` (`YYYY-MM-DD`) and `issue` (slug).
-2. Call MCP tool **`workorder_list`** with `{ date, issue }`.
-3. Present `workOrders` as id + status. Empty list means no index yet for that folder.
+1. Confirm `date` (`YYYY-MM-DD`) and **`repo`** (folder under the date; required).
+2. Optionally pass **`issue`** to scope to a single track; omit to list every issue folder under that repo.
+3. Call MCP tool **`workorder_list`** with `{ date, repo, issue? }`.
+4. Present `workOrders`: each item has `id`, `status`, and **`issue`** (folder name; when you passed a single `issue`, it matches that track). Empty list means no data for that scope.
 
 ## Follow-ups
 

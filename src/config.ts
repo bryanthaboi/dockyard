@@ -2,7 +2,11 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 export function resolveDockyardRoot(): string {
-  return process.env.DOCKYARD_ROOT ?? join(homedir(), ".dockyard");
+  const raw = process.env.DOCKYARD_ROOT;
+  if (typeof raw === "string" && raw.trim() !== "") {
+    return raw.trim();
+  }
+  return join(homedir(), ".dockyard");
 }
 
 export function resolvePort(): number {

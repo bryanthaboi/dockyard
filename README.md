@@ -163,7 +163,7 @@ pnpm run dev
 
 - **Production / `pnpm start`:** open `http://127.0.0.1:36969` (or your `DOCKYARD_PORT`).
 - **`pnpm run dev`:** use `http://127.0.0.1:5173` so the Vite dev server can proxy API calls to the backend.
-- **CLI viewer:** `dockyard dashboard on` prints a URL to open. **From npm** (`dockyard-mcp`), that URL is the **HTTP API** (default `http://127.0.0.1:36969/`) serving the built dashboard—no Vite bundled. **From a dev clone** with Vite installed, it starts **Vite on 5173** (proxy to the API) when possible. A helper API process is only started if nothing is listening on `DOCKYARD_PORT`. `dockyard dashboard off` stops what `on` started.
+- **CLI viewer:** `dockyard dashboard on` prints a URL to open. **From npm** (`dockyard-mcp`), that URL is the **HTTP API** (default `http://127.0.0.1:36969/`) serving the built dashboard—no Vite bundled. **From a dev clone** with Vite installed, it starts **Vite on 5173** (proxy to the API) when possible. A helper API process is only started if nothing is listening on `DOCKYARD_PORT`. **`dockyard dashboard off`** only stops **Vite** and/or the **helper** in **`.dockyard-viewer.json`** — not an IDE-owned listener. **`dockyard dashboard restart`** kills **whatever listens on `DOCKYARD_PORT`** (including MCP), starts a fresh helper + viewer, then you **re-enable Dockyard MCP** in the editor.
 - **Branding assets:** put `logo.jpg` (or `favicon.svg`) in [`dashboard/public/`](dashboard/public/); they are copied into `dashboard/dist` at build time and served by the API or Vite. The header tries `/logo.jpg` first, then falls back to the bundled favicon.
 
 ---
@@ -184,7 +184,7 @@ dockyard --version
 | Command | Purpose |
 |---------|---------|
 | `dockyard insert` | Create a work order from markdown **stdin** or `--file` |
-| `dockyard list` | List work order ids and statuses for one issue + date |
+| `dockyard list` | List work orders for a **repo** + date; optional `--issue` for one track |
 | `dockyard pending` | List pending work orders (all issues or filtered) |
 | `dockyard complete` | Mark one work order complete in the index |
 
@@ -204,15 +204,15 @@ On success, prints one line: the new id (e.g. `wo-001`). The markdown body must 
 
 **`dockyard list`**
 
-- **Required:** `--issue <slug>`
-- **Optional:** `--repo <slug>` — disambiguate when several repos share an issue; use **`legacy`** for old `date/<issue>/` trees.
+- **Required:** `--repo <slug>` — folder under the date.
+- **Optional:** `--issue <slug>` — one issue track; omit to list **all** issues under that repo.
 - **Optional:** `--date YYYY-MM-DD` (default: **today**)
 
-Output: TSV lines `wo-001<TAB>pending` or `complete`.
+Output: with `--issue`, TSV `wo-001<TAB>pending` (or `complete`). Without `--issue`, TSV `issue-slug<TAB>wo-001<TAB>pending` per row.
 
 ```bash
 dockyard list --repo my-app --issue my-feature
-dockyard list --issue my-feature --date 2026-03-24
+dockyard list --repo my-app --date 2026-03-24
 ```
 
 **`dockyard pending`**
@@ -231,7 +231,7 @@ dockyard pending --repo my-app
 **`dockyard complete`**
 
 - **Required:** `--issue <slug>`, `--date YYYY-MM-DD`, `--id wo-001`
-- **Optional:** `--repo <slug>` (omit if unambiguous; **`legacy`** for old layout)
+- **Optional:** `--repo <slug>` (omit if unambiguous)
 
 ```bash
 dockyard complete --repo my-app --issue my-feature --date 2026-03-24 --id wo-001
@@ -246,7 +246,8 @@ Silent on success; errors go to stderr.
 | Command | Purpose |
 |---------|---------|
 | `dockyard dashboard on` | Print a dashboard URL: **npm install** → API + static UI on `DOCKYARD_PORT` (e.g. `36969`); **source + Vite** → Vite dev on `5173` when `vite` is installed. Starts a helper API only if nothing listens on `DOCKYARD_PORT`. |
-| `dockyard dashboard off` | Stop processes recorded from the last `on` run. |
+| `dockyard dashboard off` | Stop **Vite** and/or the **helper** API listed in `.dockyard-viewer.json` under `DOCKYARD_ROOT`. Does **not** stop the IDE’s MCP server on `DOCKYARD_PORT`. |
+| `dockyard dashboard restart` | Stops Vite/state, **kills whatever listens on `DOCKYARD_PORT`** (helper or IDE MCP via `lsof`/`netstat`), then starts a **new** helper + viewer. **Re-enable Dockyard MCP** in the editor afterward. |
 
 **`dockyard dashboard on`**
 
@@ -257,7 +258,17 @@ Silent on success; errors go to stderr.
 ```bash
 dockyard dashboard on
 dockyard dashboard off
+dockyard dashboard restart
 ```
+
+**Restart cheat sheet**
+
+| What you want | What to do |
+|---------------|------------|
+| Stop **only** Vite (5173) and/or the **helper** `node dist/index.js` this CLI started | `dockyard dashboard off` |
+| **Full restart**: free **`DOCKYARD_PORT`**, start fresh API + dashboard (kills **IDE MCP** too) | **`dockyard dashboard restart`** — then turn Dockyard MCP **back on** in Cursor/VS Code |
+| Start the viewer again when the port is already free | `dockyard dashboard on` |
+| Find what holds the port | e.g. **`lsof -nP -iTCP:36969 -sTCP:LISTEN`** (replace port if needed) |
 
 ---
 
@@ -318,8 +329,6 @@ $DOCKYARD_ROOT/
         ...
 ```
 
-Older data may still be `YYYY-MM-DD/<issue-slug>/` (no repo segment); tools treat that as **`repo: legacy`**.
-
 Default: `DOCKYARD_ROOT` = `~/.dockyard`.
 
 ---
@@ -362,6 +371,7 @@ Default: `DOCKYARD_ROOT` = `~/.dockyard`.
 | MCP server fails to start in the IDE | Ensure `node` is on PATH; check `DOCKYARD_ROOT` paths; restart the IDE |
 | Dashboard 404 | **npm:** ensure the MCP process is running (IDE) or `dockyard dashboard on`; the API serves `dashboard/dist`. **Source:** run `pnpm run build` so `dashboard/dist` exists; `pnpm start` serves it |
 | Invalid JSON error during `install-agents` | Fix the target config file the error names; the installer refuses to overwrite broken JSON |
+| `GET /issues?date=…` returns `{ "issues": [...] }` instead of `{ "tracks": [{ "repo", "issue" }] }` | Another build or old **`dockyard-mcp`** is bound to **`DOCKYARD_PORT`**. Stop it, run **`pnpm run build`** from this repo, then start **`node dist/index.js`** (or relink global CLI). From the repo root, **`pnpm run smoke:http`** checks the live **`dist/`** behavior. |
 
 ---
 

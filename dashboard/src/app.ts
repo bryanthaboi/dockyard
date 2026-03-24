@@ -77,28 +77,23 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-/** Accepts current `{ tracks }` or older `{ issues: string[] }` shapes; never returns undefined. */
+/** Parses `{ tracks: [{ repo, issue }] }` from GET /issues. */
 function normalizeTracksPayload(data: unknown): Track[] {
   if (!data || typeof data !== "object") return [];
-  const o = data as { tracks?: unknown; issues?: unknown };
-  if (Array.isArray(o.tracks)) {
-    const out: Track[] = [];
-    for (const t of o.tracks) {
-      if (
-        t !== null &&
-        typeof t === "object" &&
-        typeof (t as Track).repo === "string" &&
-        typeof (t as Track).issue === "string"
-      ) {
-        out.push({ repo: (t as Track).repo, issue: (t as Track).issue });
-      }
+  const o = data as { tracks?: unknown };
+  if (!Array.isArray(o.tracks)) return [];
+  const out: Track[] = [];
+  for (const t of o.tracks) {
+    if (
+      t !== null &&
+      typeof t === "object" &&
+      typeof (t as Track).repo === "string" &&
+      typeof (t as Track).issue === "string"
+    ) {
+      out.push({ repo: (t as Track).repo, issue: (t as Track).issue });
     }
-    return out;
   }
-  if (Array.isArray(o.issues)) {
-    return (o.issues as string[]).map((issue) => ({ repo: "legacy", issue }));
-  }
-  return [];
+  return out;
 }
 
 export function mount(root: HTMLElement): void {

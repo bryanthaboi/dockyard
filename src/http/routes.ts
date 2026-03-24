@@ -7,10 +7,10 @@ function zodMessage(err: z.ZodError): string {
   return err.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("; ");
 }
 
-const queryDateIssue = z.object({
+const queryListWorkOrders = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  issue: z.string().min(1),
-  repo: z.string().min(1).optional(),
+  repo: z.string().min(1),
+  issue: z.string().min(1).optional(),
 });
 
 const optionalQueryPending = z.object({
@@ -22,12 +22,6 @@ const optionalQueryPending = z.object({
 const paramsDateRepoIssueWo = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   repo: z.string().min(1),
-  issue: z.string().min(1),
-  woId: woIdSchema,
-});
-
-const paramsDateIssueWoLegacy = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   issue: z.string().min(1),
   woId: woIdSchema,
 });
@@ -80,17 +74,16 @@ export async function registerWorkOrderRoutes(
   });
 
   app.get("/work-orders", async (req, reply) => {
-    const q = queryDateIssue.safeParse(req.query);
+    const q = queryListWorkOrders.safeParse(req.query);
     if (!q.success) {
       return reply
         .code(400)
-        .send({ error: "Query parameters date and issue are required", details: zodMessage(q.error) });
+        .send({ error: "Query parameters date and repo are required", details: zodMessage(q.error) });
     }
     const list = await service.listWorkOrders(q.data);
     return { workOrders: list };
   });
 
-  /* Register 4-segment routes before 3-segment so /date/repo/issue/wo is not captured as legacy. */
   app.get("/work-orders/:date/:repo/:issue/:woId", async (req, reply) => {
     const p = paramsDateRepoIssueWo.safeParse(req.params);
     if (!p.success) {
@@ -115,42 +108,6 @@ export async function registerWorkOrderRoutes(
 
   app.patch("/work-orders/:date/:repo/:issue/:woId/complete", async (req, reply) => {
     const p = paramsDateRepoIssueWo.safeParse(req.params);
-    if (!p.success) {
-      return reply.code(400).send({ error: zodMessage(p.error) });
-    }
-    try {
-      await service.markWorkOrderComplete(p.data);
-      return { ok: true };
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      return reply.code(400).send({ error: msg });
-    }
-  });
-
-  /** Legacy disk layout: date/issue/wo (no repo segment). */
-  app.get("/work-orders/:date/:issue/:woId", async (req, reply) => {
-    const p = paramsDateIssueWoLegacy.safeParse(req.params);
-    if (!p.success) {
-      return reply.code(400).send({ error: zodMessage(p.error) });
-    }
-    try {
-      const data = await service.getWorkOrderWithMeta({ ...p.data, issue: p.data.issue });
-      return {
-        date: p.data.date,
-        repo: data.repo,
-        issue: p.data.issue,
-        id: p.data.woId,
-        status: data.status,
-        markdown: data.markdown,
-      };
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      return reply.code(404).send({ error: msg });
-    }
-  });
-
-  app.patch("/work-orders/:date/:issue/:woId/complete", async (req, reply) => {
-    const p = paramsDateIssueWoLegacy.safeParse(req.params);
     if (!p.success) {
       return reply.code(400).send({ error: zodMessage(p.error) });
     }
