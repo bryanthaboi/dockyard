@@ -24,24 +24,24 @@ If you use Cursor, Codex, Claude Code, VS Code, or similar hosts, Dockyard fits 
 The published package includes **pre-built** `dist/` and `dashboard/dist`—no compile step after install.
 
 ```bash
-npm install -g dockyard
+npm install -g dockyard-mcp
 dockyard --help
 ```
 
+The npm package is **`dockyard-mcp`**; the CLI on your PATH is still **`dockyard`** (and **`dockyard-mcp`** is the same binary if you prefer that name).
+
 ```bash
 # or, with pnpm
-pnpm add -g dockyard
+pnpm add -g dockyard-mcp
 ```
 
 Run without a global install:
 
 ```bash
-npx dockyard --help
+npx dockyard-mcp --help
 ```
 
-If the package name `dockyard` is already taken on the public registry when you publish, use a [scoped name](https://docs.npmjs.com/cli/v10/using-npm/scope) (e.g. `@your-scope/dockyard`) in `package.json` instead.
-
-Then continue with **[Register MCP + skills](#registering-mcp-and-skills)** below (the `dockyard` CLI resolves its own install path for `install-agents` / `install-skills`).
+Then continue with **[Register MCP + skills](#registering-mcp-and-skills)** below (the CLI resolves its own install path for `install-agents` / `install-skills`).
 
 ---
 
@@ -317,7 +317,7 @@ Default: `DOCKYARD_ROOT` = `~/.dockyard`.
    npm pack --dry-run
    ```
 
-**Note:** This repo lists **`dashboard/`** in [`pnpm-workspace.yaml`](pnpm-workspace.yaml) for local dev. Publishing uses the **root** [`package.json`](package.json) only; the published tarball is defined by the **`files`** field there (not the dashboard workspace package).
+**Note:** The registry name is **`dockyard-mcp`** (see `"name"` in [`package.json`](package.json)). This repo lists **`dashboard/`** in [`pnpm-workspace.yaml`](pnpm-workspace.yaml) for local dev. Publishing uses the **root** [`package.json`](package.json) only; the published tarball is defined by the **`files`** field there (not the dashboard workspace package).
 
 ---
 
@@ -325,7 +325,7 @@ Default: `DOCKYARD_ROOT` = `~/.dockyard`.
 
 | Problem | What to try |
 |---------|-------------|
-| `dockyard: command not found` | Run `pnpm link --global` from the package root, or use `node /path/to/dist/cli.js` |
+| `dockyard: command not found` | Run `npm install -g dockyard-mcp`, or `pnpm link --global` from a source clone, or use `node /path/to/dist/cli.js` |
 | `Server script not found` on `install-agents` | Run `pnpm run build` |
 | MCP server fails to start in the IDE | Ensure `node` is on PATH; check `DOCKYARD_ROOT` paths; restart the IDE |
 | Dashboard 404 | Run `pnpm run build` so `dashboard/dist` exists; `pnpm start` serves it |

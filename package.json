@@ -1,5 +1,5 @@
 {
-  "name": "dockyard",
+  "name": "dockyard-mcp",
   "version": "0.1.0",
   "author": "bryanthaboi",
   "license": "GPL-3.0",
@@ -48,7 +48,8 @@
   "description": "Local-first MCP work-order server, CLI, and dashboard (GPL-3.0)",
   "type": "module",
   "bin": {
-    "dockyard": "./dist/cli.js"
+    "dockyard": "./dist/cli.js",
+    "dockyard-mcp": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc && vite build --config dashboard/vite.config.ts",

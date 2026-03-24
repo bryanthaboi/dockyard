@@ -67,7 +67,7 @@ The checker uses a simple lowercase substring list: `work order`, `wo-`, `MCP`, 
 
 ## CLI for humans and scripts
 
-The **`dockyard`** CLI talks to the **same filesystem** as the server (no HTTP needed for insert/list/pending/complete). Install globally with `pnpm link --global` or `npm link` from the package root after `pnpm run build`; see [README.md](../README.md) for install, env vars, and every flag.
+The **`dockyard`** CLI talks to the **same filesystem** as the server (no HTTP needed for insert/list/pending/complete). Install from npm with **`npm install -g dockyard-mcp`** (command remains `dockyard`), or use `pnpm link --global` / `npm link` from a source clone after `pnpm run build`; see [README.md](../README.md) for install, env vars, and every flag.
 
 Quick examples:
 
