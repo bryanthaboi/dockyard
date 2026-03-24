@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dockyard: get work order"
+  short_description: "Fetch one WO markdown and status via MCP"
+  default_prompt: "Use $dockyard-get-work-order to load the full Dockyard work order the user referenced."

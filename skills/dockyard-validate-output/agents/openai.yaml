@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dockyard: validate output"
+  short_description: "Substring check on code via MCP"
+  default_prompt: "Use $dockyard-validate-output to run Dockyard’s validate_output check on code before it ships to another repo."

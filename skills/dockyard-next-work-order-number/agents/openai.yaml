@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dockyard: next WO number"
+  short_description: "Peek next WO sequence via MCP"
+  default_prompt: "Use $dockyard-next-work-order-number to read the next Dockyard work order number for planning inserts."

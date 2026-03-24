@@ -1,0 +1,10 @@
+{
+  "name": "Dockyard",
+  "short_name": "Dockyard",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "theme_color": "#1a1d24",
+  "background_color": "#1a1d24",
+  "display": "standalone"
+}

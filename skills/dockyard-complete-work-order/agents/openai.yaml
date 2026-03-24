@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dockyard: complete work order"
+  short_description: "Mark a WO done via MCP workorder_complete"
+  default_prompt: "Use $dockyard-complete-work-order to mark the finished Dockyard work order complete in the index."

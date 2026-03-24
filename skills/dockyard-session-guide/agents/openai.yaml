@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dockyard: session guide"
+  short_description: "MCP tools (not resources) + CLI fallback for the work-order queue"
+  default_prompt: "Use $dockyard-session-guide first: Dockyard uses MCP tools workorder_*; listing MCP resources will not show Dockyard. Call workorder_list_pending or dockyard pending, then workorder_get / workorder_complete per item."

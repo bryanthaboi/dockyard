@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dockyard: list pending WOs"
+  short_description: "Global or filtered pending queue via MCP"
+  default_prompt: "Use $dockyard-list-pending-work-orders to show what Dockyard work orders are still open."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dockyard: insert work order"
+  short_description: "Queue a new WO with workorder_insert MCP tool"
+  default_prompt: "Use $dockyard-insert-work-order to create a Dockyard work order for the current task with the correct date, issue slug, and full markdown body."
