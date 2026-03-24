@@ -8,6 +8,16 @@ If you use Cursor, Codex, Claude Code, VS Code, or similar hosts, Dockyard fits 
 - **Dashboard & API:** `http://127.0.0.1:36969` by default (`DOCKYARD_PORT` to change). The dev dashboard is started with `dockyard dashboard on` when you want the separate Vite viewer.
 - **MCP:** one process serves JSON-RPC over **stdio** for compatible clients.
 
+## Work orders, prompts, and agent skills
+
+**Work orders** are small, **plain markdown** jobs stored under **`DOCKYARD_ROOT`** (default **`~/.dockyard`**), grouped by calendar **`date`**, optional **`repo`** (a folder name for which codebase the work belongs to), and **`issue`** (a slug such as `auth-refactor`). Each order is a file like **`wo-001.md`**, **`wo-002.md`**, … inside that folder. Nothing is written into your git repos; the queue stays local and outside version control.
+
+**Why the format looks like a prompt:** the body you pass to **`workorder_insert`** (or paste from the CLI/dashboard) is not free-form prose. Dockyard expects a fixed set of **`##` sections**—from **`## Objective`** through **`## Notes`**—so every task reads like a **structured brief** for an agent: what to achieve, step-by-step instructions, which files matter, what must not be touched, and what to defer. The server fills in the title line (`# Work Order: WO-NNN`), **Status**, **Created**, and assigns the canonical **`wo-NNN`** id. That consistency makes it easier for models to **parse**, **plan**, and **verify** work the same way every time.
+
+**Typical agent loop:** split a large goal into focused orders → **`workorder_insert`** each with a full body → **`workorder_list_pending`** to see the queue → **`workorder_get`** for the markdown of a specific item → do the work in the target repo → **`workorder_complete`** when done. Before copying generated text into product code, **`workorder_validate_output`** flags obvious Dockyard-internal phrases so they do not leak into shipped files. The same lifecycle is available over **HTTP** and the **`dockyard`** CLI; full step-by-step, template, and caveats are in **[docs/agent-workflow.md](docs/agent-workflow.md)**.
+
+**Bundled skills** (install with **`dockyard install-skills`**) teach compatible hosts **how** to use Dockyard: **`dockyard-session-guide`** (MCP **tools** vs empty **resources**, queue mindset), plus one skill per tool—**`dockyard-insert-work-order`**, **`dockyard-list-work-orders`**, **`dockyard-list-pending-work-orders`**, **`dockyard-get-work-order`**, **`dockyard-complete-work-order`**, **`dockyard-next-work-order-number`**, **`dockyard-validate-output`**—so agents get section templates, parameter reminders, and workflow text when creating or draining work orders. See **[Registering MCP and skills](#registering-mcp-and-skills)** below to wire MCP and skills into Cursor, Codex, Claude Code, VS Code, and others.
+
 ---
 
 ## Requirements
